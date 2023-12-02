@@ -30,6 +30,7 @@ import (
 	"github.com/gohugoio/hugo/common/collections"
 	"github.com/gohugoio/hugo/common/herrors"
 	"github.com/gohugoio/hugo/common/hexec"
+	"github.com/gohugoio/hugo/common/loggers"
 
 	hglob "github.com/gohugoio/hugo/hugofs/glob"
 
@@ -38,8 +39,6 @@ import (
 	"github.com/gohugoio/hugo/hugofs"
 
 	"github.com/gohugoio/hugo/hugofs/files"
-
-	"github.com/gohugoio/hugo/common/loggers"
 
 	"github.com/gohugoio/hugo/config"
 
@@ -98,7 +97,7 @@ func NewClient(cfg ClientConfig) *Client {
 
 	logger := cfg.Logger
 	if logger == nil {
-		logger = loggers.NewWarningLogger()
+		logger = loggers.NewDefault()
 	}
 
 	var noVendor glob.Glob
@@ -154,10 +153,6 @@ func (c *Client) Graph(w io.Writer) error {
 			continue
 		}
 
-		prefix := ""
-		if module.Disabled() {
-			prefix = "DISABLED "
-		}
 		dep := pathVersion(module.Owner()) + " " + pathVersion(module)
 		if replace := module.Replace(); replace != nil {
 			if replace.Version() != "" {
@@ -167,7 +162,7 @@ func (c *Client) Graph(w io.Writer) error {
 				dep += " => " + replace.Dir()
 			}
 		}
-		fmt.Fprintln(w, prefix+dep)
+		fmt.Fprintln(w, dep)
 	}
 
 	return nil
@@ -293,8 +288,10 @@ func (c *Client) Vendor() error {
 			}
 		}
 
-		// Also include any theme.toml or config.* files in the root.
+		// Also include any theme.toml or config.* or hugo.* files in the root.
 		configFiles, _ := afero.Glob(c.fs, filepath.Join(dir, "config.*"))
+		configFiles2, _ := afero.Glob(c.fs, filepath.Join(dir, "hugo.*"))
+		configFiles = append(configFiles, configFiles2...)
 		configFiles = append(configFiles, filepath.Join(dir, "theme.toml"))
 		for _, configFile := range configFiles {
 			if err := hugio.CopyFile(c.fs, configFile, filepath.Join(vendorDir, t.Path(), filepath.Base(configFile))); err != nil {
@@ -321,14 +318,33 @@ func (c *Client) Get(args ...string) error {
 		patch := update && (args[0] == "-u=patch") //
 
 		// We need to be explicit about the modules to get.
-		for _, m := range c.moduleConfig.Imports {
-			if !isProbablyModule(m.Path) {
-				// Skip themes/components stored below /themes etc.
-				// There may be false positives in the above, but those
-				// should be rare, and they will fail below with an
-				// "cannot find module providing ..." message.
-				continue
+		var modules []string
+		// Update all active modules if the -u flag presents.
+		if update {
+			mc, coll := c.collect(true)
+			if coll.err != nil {
+				return coll.err
 			}
+			for _, m := range mc.AllModules {
+				if m.Owner() == nil {
+					continue
+				}
+				modules = append(modules, m.Path())
+			}
+		} else {
+			for _, m := range c.moduleConfig.Imports {
+				if !isProbablyModule(m.Path) {
+					// Skip themes/components stored below /themes etc.
+					// There may be false positives in the above, but those
+					// should be rare, and they will fail below with an
+					// "cannot find module providing ..." message.
+					continue
+				}
+				modules = append(modules, m.Path)
+			}
+		}
+
+		for _, m := range modules {
 			var args []string
 
 			if update && !patch {
@@ -336,7 +352,7 @@ func (c *Client) Get(args ...string) error {
 			} else if update && patch {
 				args = append(args, "-u=patch")
 			}
-			args = append(args, m.Path)
+			args = append(args, m)
 
 			if err := c.get(args...); err != nil {
 				return err
@@ -433,9 +449,9 @@ func (c *Client) Clean(pattern string) error {
 		if g != nil && !g.Match(m.Path) {
 			continue
 		}
-		_, err = hugofs.MakeReadableAndRemoveAllModulePkgDir(c.fs, m.Dir)
+		dirCount, err := hugofs.MakeReadableAndRemoveAllModulePkgDir(c.fs, m.Dir)
 		if err == nil {
-			c.logger.Printf("hugo: cleaned module cache for %q", m.Path)
+			c.logger.Printf("hugo: removed %d dirs in module cache for %q", dirCount, m.Path)
 		}
 	}
 	return err
@@ -455,7 +471,7 @@ func (c *Client) listGoMods() (goModules, error) {
 	}
 
 	downloadModules := func(modules ...string) error {
-		args := []string{"mod", "download"}
+		args := []string{"mod", "download", "-modcacherw"}
 		args = append(args, modules...)
 		out := io.Discard
 		err := c.runGo(context.Background(), out, args...)

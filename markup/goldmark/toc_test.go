@@ -1,4 +1,4 @@
-// Copyright 2019 The Hugo Authors. All rights reserved.
+// Copyright 2023 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,17 +11,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package goldmark converts Markdown to HTML using Goldmark.
-package goldmark
+package goldmark_test
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/gohugoio/hugo/markup/converter/hooks"
-	"github.com/gohugoio/hugo/markup/markup_config"
-
 	"github.com/gohugoio/hugo/common/loggers"
+	"github.com/gohugoio/hugo/config/testconfig"
+	"github.com/gohugoio/hugo/markup/converter/hooks"
+	"github.com/gohugoio/hugo/markup/goldmark"
 
 	"github.com/gohugoio/hugo/markup/converter"
 
@@ -53,17 +52,18 @@ And then some.
 #### First H4
 
 `
-	p, err := Provider.New(
+	p, err := goldmark.Provider.New(
 		converter.ProviderConfig{
-			MarkupConfig: markup_config.Default,
-			Logger:       loggers.NewErrorLogger(),
+			Conf:   testconfig.GetTestConfig(nil, nil),
+			Logger: loggers.NewDefault(),
 		})
 	c.Assert(err, qt.IsNil)
 	conv, err := p.New(converter.DocumentContext{})
 	c.Assert(err, qt.IsNil)
 	b, err := conv.Convert(converter.RenderContext{Src: []byte(content), RenderTOC: true, GetRenderer: nopGetRenderer})
 	c.Assert(err, qt.IsNil)
-	got := b.(converter.TableOfContentsProvider).TableOfContents().ToHTML(2, 3, false)
+	tocHTML := b.(converter.TableOfContentsProvider).TableOfContents().ToHTML(2, 3, false)
+	got := string(tocHTML)
 	c.Assert(got, qt.Equals, `<nav id="TableOfContents">
   <ul>
     <li><a href="#first-h2---now-with-typography">First h2&mdash;now with typography!</a>
@@ -83,23 +83,15 @@ And then some.
 func TestEscapeToc(t *testing.T) {
 	c := qt.New(t)
 
-	defaultConfig := markup_config.Default
-
-	safeConfig := defaultConfig
-	unsafeConfig := defaultConfig
-
-	safeConfig.Goldmark.Renderer.Unsafe = false
-	unsafeConfig.Goldmark.Renderer.Unsafe = true
-
-	safeP, _ := Provider.New(
+	safeP, _ := goldmark.Provider.New(
 		converter.ProviderConfig{
-			MarkupConfig: safeConfig,
-			Logger:       loggers.NewErrorLogger(),
+			Conf:   safeConf(),
+			Logger: loggers.NewDefault(),
 		})
-	unsafeP, _ := Provider.New(
+	unsafeP, _ := goldmark.Provider.New(
 		converter.ProviderConfig{
-			MarkupConfig: unsafeConfig,
-			Logger:       loggers.NewErrorLogger(),
+			Conf:   unsafeConf(),
+			Logger: loggers.NewDefault(),
 		})
 	safeConv, _ := safeP.New(converter.DocumentContext{})
 	unsafeConv, _ := unsafeP.New(converter.DocumentContext{})
@@ -113,7 +105,8 @@ func TestEscapeToc(t *testing.T) {
 	// content := ""
 	b, err := safeConv.Convert(converter.RenderContext{Src: []byte(content), RenderTOC: true, GetRenderer: nopGetRenderer})
 	c.Assert(err, qt.IsNil)
-	got := b.(converter.TableOfContentsProvider).TableOfContents().ToHTML(1, 2, false)
+	tocHTML := b.(converter.TableOfContentsProvider).TableOfContents().ToHTML(1, 2, false)
+	got := string(tocHTML)
 	c.Assert(got, qt.Equals, `<nav id="TableOfContents">
   <ul>
     <li><a href="#a--b--c--d">A &lt; B &amp; C &gt; D</a></li>
@@ -125,7 +118,8 @@ func TestEscapeToc(t *testing.T) {
 
 	b, err = unsafeConv.Convert(converter.RenderContext{Src: []byte(content), RenderTOC: true, GetRenderer: nopGetRenderer})
 	c.Assert(err, qt.IsNil)
-	got = b.(converter.TableOfContentsProvider).TableOfContents().ToHTML(1, 2, false)
+	tocHTML = b.(converter.TableOfContentsProvider).TableOfContents().ToHTML(1, 2, false)
+	got = string(tocHTML)
 	c.Assert(got, qt.Equals, `<nav id="TableOfContents">
   <ul>
     <li><a href="#a--b--c--d">A &lt; B &amp; C &gt; D</a></li>

@@ -1,12 +1,14 @@
 ---
-linktitle: ""
-description: ""
+title: {{ replace .File.ContentBaseName "-" " " | title }}
+description:
 categories: [functions]
-tags: []
-ns: ""
-signature: []
-hugoversion: ""
-aliases: []
-relatedfuncs: []
-toc: false
+keywords: []
+menu:
+  docs:
+    parent: functions
+function:
+  aliases: []
+  returnType:
+  signatures: []
+relatedFunctions: []
 ---

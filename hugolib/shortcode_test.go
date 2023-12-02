@@ -22,9 +22,9 @@ import (
 	"testing"
 
 	"github.com/gohugoio/hugo/config"
+	"github.com/gohugoio/hugo/resources/kinds"
 
 	"github.com/gohugoio/hugo/parser/pageparser"
-	"github.com/gohugoio/hugo/resources/page"
 
 	qt "github.com/frankban/quicktest"
 )
@@ -186,7 +186,7 @@ CSV: {{< myShort >}}
 	b.Assert(len(h.Sites), qt.Equals, 1)
 
 	s := h.Sites[0]
-	home := s.getPage(page.KindHome)
+	home := s.getPage(kinds.KindHome)
 	b.Assert(home, qt.Not(qt.IsNil))
 	b.Assert(len(home.OutputFormats()), qt.Equals, 3)
 
@@ -599,7 +599,7 @@ weight: %d
 	c.Assert(len(s.RegularPages()), qt.Equals, 3)
 
 	builder.AssertFileContent("public/en/p1/index.html", `v1: 0 sgo: |v2: 1 sgo: 0|v3: 2 sgo: 1|v4: 3 sgo: 2|v5: 4 sgo: 3`)
-	builder.AssertFileContent("public/en/p1/index.html", `outer ordinal: 5 inner: 
+	builder.AssertFileContent("public/en/p1/index.html", `outer ordinal: 5 inner:
 ordinal: 0 scratch ordinal: 1 scratch get ordinal: 0
 ordinal: 2 scratch ordinal: 3 scratch get ordinal: 2
 ordinal: 4 scratch ordinal: 5 scratch get ordinal: 4`)
@@ -754,33 +754,6 @@ title: "Hugo Rocks!"
 	)
 }
 
-// https://github.com/gohugoio/hugo/issues/6504
-func TestShortcodeEmoji(t *testing.T) {
-	t.Parallel()
-
-	v := config.NewWithTestDefaults()
-	v.Set("enableEmoji", true)
-
-	builder := newTestSitesBuilder(t).WithViper(v)
-
-	builder.WithContent("page.md", `---
-title: "Hugo Rocks!"
----
-
-# doc
-
-{{< event >}}10:30-11:00 My :smile: Event {{< /event >}}
-
-
-`).WithTemplatesAdded(
-		"layouts/shortcodes/event.html", `<div>{{ "\u29BE" }} {{ .Inner }} </div>`)
-
-	builder.Build(BuildCfg{})
-	builder.AssertFileContent("public/page/index.html",
-		"⦾ 10:30-11:00 My 😄 Event",
-	)
-}
-
 func TestShortcodeParams(t *testing.T) {
 	t.Parallel()
 	c := qt.New(t)
@@ -822,7 +795,7 @@ Get: {{ printf "%v (%T)" $b1 $b1 | safeHTML }}
 func TestShortcodeRef(t *testing.T) {
 	t.Parallel()
 
-	v := config.NewWithTestDefaults()
+	v := config.New()
 	v.Set("baseURL", "https://example.org")
 
 	builder := newTestSitesBuilder(t).WithViper(v)
@@ -935,6 +908,7 @@ func TestShortcodeMarkdownOutputFormat(t *testing.T) {
 title: "p1"
 ---
 {{< foo >}}
+# The below would have failed using the HTML template parser.
 -- layouts/shortcodes/foo.md --
 §§§
 <x
@@ -947,7 +921,6 @@ title: "p1"
 		IntegrationTestConfig{
 			T:           t,
 			TxtarString: files,
-			Running:     true,
 		},
 	).Build()
 
@@ -990,7 +963,6 @@ title: "p1"
 		IntegrationTestConfig{
 			T:           t,
 			TxtarString: files,
-			Running:     true,
 		},
 	).Build()
 
@@ -1022,7 +994,6 @@ echo "foo";
 		IntegrationTestConfig{
 			T:           t,
 			TxtarString: files,
-			Running:     true,
 		},
 	).Build()
 
@@ -1060,7 +1031,6 @@ title: "p1"
 		IntegrationTestConfig{
 			T:           t,
 			TxtarString: files,
-			Running:     true,
 		},
 	).Build()
 
@@ -1097,8 +1067,8 @@ Title: {{ .Get "title" | safeHTML }}
 		IntegrationTestConfig{
 			T:           t,
 			TxtarString: files,
-			Running:     true,
-			Verbose:     true,
+
+			Verbose: true,
 		},
 	).Build()
 
@@ -1190,8 +1160,8 @@ C'est un test
 		IntegrationTestConfig{
 			T:           t,
 			TxtarString: files,
-			Running:     true,
-			Verbose:     true,
+
+			Verbose: true,
 		},
 	).Build()
 
@@ -1228,8 +1198,8 @@ InnerDeindent: {{ .Get 0 }}: {{ len .InnerDeindent }}
 		IntegrationTestConfig{
 			T:           t,
 			TxtarString: files,
-			Running:     true,
-			Verbose:     true,
+
+			Verbose: true,
 		},
 	).Build()
 
@@ -1268,8 +1238,8 @@ Inner: {{ .Get 0 }}: {{ len .Inner }}
 		IntegrationTestConfig{
 			T:           t,
 			TxtarString: files,
-			Running:     true,
-			Verbose:     true,
+
+			Verbose: true,
 		},
 	).BuildE()
 
@@ -1305,8 +1275,8 @@ Hello.
 		IntegrationTestConfig{
 			T:           t,
 			TxtarString: files,
-			Running:     true,
-			Verbose:     true,
+
+			Verbose: true,
 		},
 	).Build()
 

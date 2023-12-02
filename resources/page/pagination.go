@@ -16,7 +16,6 @@ package page
 import (
 	"errors"
 	"fmt"
-	"html/template"
 	"math"
 	"reflect"
 
@@ -71,8 +70,8 @@ func (p *Pager) PageNumber() int {
 }
 
 // URL returns the URL to the current page.
-func (p *Pager) URL() template.HTML {
-	return template.HTML(p.paginationURLFactory(p.PageNumber()))
+func (p *Pager) URL() string {
+	return p.paginationURLFactory(p.PageNumber())
 }
 
 // Pages returns the Pages on this page.
@@ -250,9 +249,9 @@ func splitPageGroups(pageGroups PagesGroup, size int) []paginatedElement {
 	return split
 }
 
-func ResolvePagerSize(cfg config.Provider, options ...any) (int, error) {
+func ResolvePagerSize(conf config.AllProvider, options ...any) (int, error) {
 	if len(options) == 0 {
-		return cfg.GetInt("paginate"), nil
+		return conf.Paginate(), nil
 	}
 
 	if len(options) > 1 {
@@ -389,7 +388,7 @@ func newPaginationURLFactory(d TargetPathDescriptor) paginationURLFactory {
 		pathDescriptor := d
 		var rel string
 		if pageNumber > 1 {
-			rel = fmt.Sprintf("/%s/%d/", d.PathSpec.PaginatePath, pageNumber)
+			rel = fmt.Sprintf("/%s/%d/", d.PathSpec.Cfg.PaginatePath(), pageNumber)
 			pathDescriptor.Addends = rel
 		}
 
